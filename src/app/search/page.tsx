@@ -3,11 +3,10 @@ import { SearchInput } from "./search-input";
 import { EmailList } from "./email-list";
 import { SearchPagination } from "./search-pagination";
 import { PerPageSelector } from "./per-page-selector";
-import fs from "fs/promises";
-import path from "path";
 import { loadChats, loadMemories } from "@/lib/persistence-layer";
 import { CHAT_LIMIT } from "../page";
 import { SideBar } from "@/components/side-bar";
+import { loadEmails, searchEmailsWithRRF } from "../search";
 
 interface Email {
   id: string;
@@ -25,12 +24,6 @@ interface Email {
   phaseId?: number;
 }
 
-async function loadEmails(): Promise<Email[]> {
-  const filePath = path.join(process.cwd(), "data", "emails.json");
-  const fileContent = await fs.readFile(filePath, "utf-8");
-  return JSON.parse(fileContent);
-}
-
 export default async function SearchPage(props: {
   searchParams: Promise<{ q?: string; page?: string; perPage?: string }>;
 }) {
@@ -41,31 +34,42 @@ export default async function SearchPage(props: {
 
   const allEmails = await loadEmails();
 
+  const emailsWithScores = await searchEmailsWithRRF(
+    query,
+    allEmails
+  );
+  // const emailsWithScores = await searchWithBM25(query.toLowerCase().split(" "), allEmails);
+
+  // const emailsWithScores = await searchWithEmbeddings(query, allEmails)
+
   // Transform emails to match the expected format
-  const transformedEmails = allEmails
-    .map((email) => ({
+  const transformedEmails = emailsWithScores
+    .map(({ item: email, score }) => ({
       id: email.id,
       from: email.from,
       subject: email.subject,
-      preview: email.body.substring(0, 100) + "...",
-      content: email.body,
+      preview: email.chunk.substring(0, 100) + "...",
+      content: email.chunk,
+      chunkIndex: email.index,
+      totalChunks: email.totalChunks,
       date: email.timestamp,
+      score: score
     }))
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => b.score - a.score);
 
   // Filter emails based on search query
-  const filteredEmails = query
-    ? transformedEmails.filter(
-        (email) =>
-          email.subject.toLowerCase().includes(query.toLowerCase()) ||
-          email.from.toLowerCase().includes(query.toLowerCase()) ||
-          email.content.toLowerCase().includes(query.toLowerCase())
-      )
-    : transformedEmails;
+  // const filteredEmails = query
+  //   ? transformedEmails.filter(
+  //     (email) =>
+  //       email.subject.toLowerCase().includes(query.toLowerCase()) ||
+  //       email.from.toLowerCase().includes(query.toLowerCase()) ||
+  //       email.content.toLowerCase().includes(query.toLowerCase())
+  //   )
+  //   : transformedEmails;
 
-  const totalPages = Math.ceil(filteredEmails.length / perPage);
+  const totalPages = Math.ceil(transformedEmails.length / perPage);
   const startIndex = (page - 1) * perPage;
-  const paginatedEmails = filteredEmails.slice(
+  const paginatedEmails = transformedEmails.slice(
     startIndex,
     startIndex + perPage
   );
@@ -96,13 +100,13 @@ export default async function SearchPage(props: {
                 <p className="text-sm text-muted-foreground">
                   {query ? (
                     <>
-                      Found {filteredEmails.length} result
-                      {filteredEmails.length !== 1 ? "s" : ""} for &ldquo;
+                      Found {transformedEmails.length} result
+                      {transformedEmails.length !== 1 ? "s" : ""} for &ldquo;
                       {query}
                       &rdquo;
                     </>
                   ) : (
-                    <>Found {filteredEmails.length} emails</>
+                    <>Found {transformedEmails.length} emails</>
                   )}
                 </p>
               </div>
