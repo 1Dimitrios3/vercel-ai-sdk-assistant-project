@@ -169,45 +169,45 @@ export async function POST(req: Request) {
 
       const relatedChats = await searchForRelatedChats(chatId, messages);
 
-      const taggedAppIds = parseAppIdsFromMessage(body.message);
-
-      const allMcpTools = await getMCPTools() as ToolSet;
-
-      const mcpTools = filterToolsByApps(allMcpTools, taggedAppIds);
-
-      const messagesWithToolResults = await executeHITLDecisions({
-        decisions: hitlResult,
-        mcpTools: allMcpTools,
-        writer,
-        messages: messageHistoryForLLM,
-      });
-
       // SWAP these lines with code below to revert back to non MCP LLM communication
 
-      const agent = createAgent({
-        memories,
-        relatedChats: relatedChats.map((chat) => chat.item),
-        messages: messagesWithToolResults,
-        model: openai("gpt-4.1"),
-        stopWhen: stepCountIs(10),
-        mcpTools,
-        writer
-      });
+      // const taggedAppIds = parseAppIdsFromMessage(body.message);
 
-      const result = agent.stream({
-        messages: annotateHITLMessageHistory(messagesWithToolResults)
-      })
+      // const allMcpTools = await getMCPTools() as ToolSet;
+
+      // const mcpTools = filterToolsByApps(allMcpTools, taggedAppIds);
+
+      // const messagesWithToolResults = await executeHITLDecisions({
+      //   decisions: hitlResult,
+      //   mcpTools: allMcpTools,
+      //   writer,
+      //   messages: messageHistoryForLLM,
+      // });
+
+      // const agent = createAgent({
+      //   memories,
+      //   relatedChats: relatedChats.map((chat) => chat.item),
+      //   messages: messagesWithToolResults,
+      //   model: openai("gpt-4.1"),
+      //   stopWhen: stepCountIs(10),
+      //   mcpTools,
+      //   writer
+      // });
+
+      // const result = agent.stream({
+      //   messages: annotateHITLMessageHistory(messagesWithToolResults)
+      // })
 
       // SWAP these lines with code above to access MCP server and LLM communication (via zapier)
 
-      // const result = streamText({
-      //   // model: google("gemini-2.5-flash-lite"),
-      //   model: openai("gpt-4o-mini"),
-      //   messages: convertToModelMessages(messageHistoryForLLM),
-      //   system: getSystemPrompt(memories, relatedChats),
-      //   tools: getTools(messages),
-      //   stopWhen: [stepCountIs(10)]
-      // });
+      const result = streamText({
+        // model: google("gemini-2.5-flash-lite"),
+        model: openai("gpt-4o-mini"),
+        messages: convertToModelMessages(messageHistoryForLLM),
+        system: getSystemPrompt(memories, relatedChats),
+        tools: getTools(messages),
+        stopWhen: [stepCountIs(10)]
+      });
 
       writer.merge(
         result.toUIMessageStream({
